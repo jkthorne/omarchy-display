@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "id": "jack.display",
+  "name": "Display",
+  "version": "1.0.0",
+  "author": "Jack",
+  "description": "Brightness, text size, scale, and hyprmoncfg multi-monitor layouts",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Display",
+    "description": "Brightness, text size, scale, and multi-monitor layouts",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  },
+  "omarchy": {
+    "clonedFrom": "omarchy.monitor"
+  },
+  "hyprmoncfg": {
+    "package": "hyprmoncfg",
+    "minimumVersion": "1.15.0",
+    "protocolVersion": 1
+  }
+}
