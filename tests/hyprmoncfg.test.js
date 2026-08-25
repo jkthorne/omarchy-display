@@ -150,6 +150,13 @@ test("daily display controls stay on the panel even without hyprmoncfg", () => {
   assert.match(qml, /displays\.length > 1 && !root\.managedChecked/)
 })
 
+test("scale persistence does not leave a numeric omarchy_monitor_scale for the wake clamshell", () => {
+  const script = fs.readFileSync(path.join(__dirname, "..", "set-scale.sh"), "utf8")
+  assert.match(script, /local omarchy_monitor_scale = "auto"/)
+  assert.match(script, /hl\.monitor\(\{ output = "", mode = "preferred"/)
+  assert.doesNotMatch(script, /omarchy_monitor_scale = \{new_scale\}/)
+})
+
 test("the panel notices its own updates, since Omarchy never pulls plugins on its own", () => {
   const check = Hypr.pluginUpdateCheckCommand("jack.display", 6)
   assert.equal(check[0], "sh")

@@ -253,8 +253,14 @@ if monitor_lua.is_file():
     for line in text.splitlines(True):
         if line.startswith("local omarchy_gdk_scale = "):
             updated.append(f"local omarchy_gdk_scale = {new_gdk}\n")
+        elif line.startswith("local omarchy_monitor_scale = "):
+            # A numeric value here is what Omarchy's wake clamshell reapplies,
+            # fighting hyprmoncfgd's 5s poll. "auto" makes clamshell no-op.
+            updated.append('local omarchy_monitor_scale = "auto"\n')
+        elif line.startswith('hl.monitor({ output = "", mode = "preferred", position = "auto", scale ='):
+            updated.append("-- " + line)
         elif 'hl.env("GDK_SCALE"' in line:
-            updated.append(f'hl.env("GDK_SCALE", "{new_gdk}")\n')
+            updated.append(f'hl.env("GDK_SCALE", tostring(omarchy_gdk_scale))\n')
         else:
             updated.append(line)
     if "".join(updated) != text:
