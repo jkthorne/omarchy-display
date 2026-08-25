@@ -3,7 +3,8 @@
   "id": "jack.display",
   "name": "Display",
   "version": "1.0.0",
-  "author": "Jack",
+  "author": "Jack Thorne",
+  "license": "MIT",
   "description": "Brightness, text size, scale, and hyprmoncfg multi-monitor layouts",
   "kinds": [
     "bar-widget"
