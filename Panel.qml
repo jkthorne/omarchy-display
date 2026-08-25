@@ -72,6 +72,9 @@ Panel {
   property string serviceAction: ""
   property bool connectionGrace: false
   property bool backendConnected: backendSocket.connected
+  property bool pluginUpdateAvailable: false
+  property bool pluginUpdating: false
+  readonly property string pluginId: "jack.display"
   property var document: ({ profiles: [], monitors: [], daemon: { running: false } })
   property bool documentReady: false
   property string lastError: ""
@@ -136,6 +139,15 @@ Panel {
         title: "Restart daemon",
         subtitle: "Running " + root.runningVersion + ", installed " + root.installedRelease
       })
+    if (root.pluginUpdateAvailable)
+      rows.push({
+        id: "update-plugin",
+        icon: "󰚰",
+        title: root.pluginUpdating ? "Updating this panel…" : "Update this panel",
+        subtitle: root.pluginUpdating
+          ? "Pulling the new version"
+          : "A newer version is available"
+      })
     return rows
   }
   readonly property bool serviceBroken: serviceStateKnown
@@ -161,7 +173,7 @@ Panel {
     if (displays.length > 1 && !root.managedChecked) list.push("monitors")
     if (!root.compatible && !root.checkingInstallation) list.push("hypr-install")
     if (root.compatible) list.push("hypr-managed")
-    if (root.compatible && root.actionRows.length > 0) list.push("hypr-actions")
+    if (root.actionRows.length > 0) list.push("hypr-actions")
     if (root.compatible) list.push("hypr-layout")
     return list
   }
@@ -560,6 +572,21 @@ Panel {
 
   function activateRow(id) {
     if (id === "restart-service") root.restartService()
+    else if (id === "update-plugin") root.updatePlugin()
+  }
+
+  function checkPluginUpdate() {
+    if (pluginUpdateProcess.running || root.pluginUpdating) return
+    pluginUpdateProcess.command = Hypr.pluginUpdateCheckCommand(root.pluginId, 6)
+    pluginUpdateProcess.running = true
+  }
+
+  function updatePlugin() {
+    if (pluginUpdateRunProcess.running || root.pluginUpdating) return
+    root.lastError = ""
+    root.pluginUpdating = true
+    pluginUpdateRunProcess.command = Hypr.pluginUpdateCommand(root.pluginId)
+    pluginUpdateRunProcess.running = true
   }
 
   implicitWidth: button.implicitWidth
@@ -574,6 +601,7 @@ Panel {
     if (opened) {
       refresh()
       root.checkInstallation()
+      root.checkPluginUpdate()
       if (root.compatible) root.checkServiceState()
       if (brightnessAvailable) {
         focusSection = "brightness"
@@ -815,6 +843,39 @@ Panel {
   }
 
   Process { id: tuiProcess }
+
+  Process {
+    id: pluginUpdateProcess
+    onExited: function(exitCode) {
+      // Only a clean "behind the remote" answer is worth acting on. A missing
+      // checkout or an unreachable remote is not the user's problem to solve.
+      root.pluginUpdateAvailable = exitCode === 10
+    }
+  }
+
+  Process {
+    id: pluginUpdateRunProcess
+    stdout: StdioCollector { id: pluginUpdateOutput; waitForEnd: true }
+    onExited: function(exitCode) {
+      root.pluginUpdating = false
+      if (exitCode !== 0) {
+        root.lastError = "The panel update did not finish. Run `omarchy plugin update " + root.pluginId + "` to see why."
+        return
+      }
+
+      root.pluginUpdateAvailable = false
+      // The files on disk are new, but this panel is still the old code until
+      // the shell reloads it, so finish the job rather than look unchanged.
+      if (Hypr.pluginUpdated(pluginUpdateOutput.text)) {
+        shellRestartProcess.command = Hypr.shellRestartCommand()
+        shellRestartProcess.startDetached()
+      }
+    }
+  }
+
+  Process {
+    id: shellRestartProcess
+  }
 
   Timer {
     id: installPoll
@@ -1395,32 +1456,40 @@ Panel {
                 onClicked: root.setManaged(!root.managedChecked)
               }
             }
+          }
 
-            Column {
-              visible: root.actionRows.length > 0
-              width: parent.width
-              spacing: Style.space(10)
+          Column {
+            visible: root.actionRows.length > 0
+            width: parent.width
+            spacing: Style.space(10)
 
-              Repeater {
-                model: root.actionRows
-
-                ActionRow {
-                  required property var modelData
-                  required property int index
-
-                  width: parent.width
-                  rowIndex: index
-                  icon: String(modelData.icon)
-                  title: String(modelData.title)
-                  subtitle: String(modelData.subtitle)
-                  onActivated: root.activateRow(String(modelData.id))
-                }
-              }
+            PanelSeparator {
+              visible: !root.compatible
+              foreground: root.foreground
             }
 
-            Column {
-              width: parent.width
-              spacing: Style.space(14)
+            Repeater {
+              model: root.actionRows
+
+              ActionRow {
+                required property var modelData
+                required property int index
+
+                width: parent.width
+                rowIndex: index
+                icon: String(modelData.icon)
+                title: String(modelData.title)
+                subtitle: String(modelData.subtitle)
+                enabled: !root.pluginUpdating || String(modelData.id) !== "update-plugin"
+                onActivated: root.activateRow(String(modelData.id))
+              }
+            }
+          }
+
+          Column {
+            visible: root.compatible
+            width: parent.width
+            spacing: Style.space(14)
 
               PanelSeparator { foreground: root.foreground }
 
@@ -1617,7 +1686,6 @@ Panel {
                 }
               }
             }
-          }
 
           Item {
             width: parent.width

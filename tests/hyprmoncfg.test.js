@@ -148,8 +148,46 @@ test("daily display controls stay on the panel even without hyprmoncfg", () => {
   assert.match(qml, /ipcTarget: "omarchy.monitor"/)
   assert.match(qml, /jack\.display\/set-scale\.sh/)
   assert.match(qml, /displays\.length > 1 && !root\.managedChecked/)
-  assert.doesNotMatch(qml, /Update this panel/)
-  assert.doesNotMatch(qml, /pluginUpdate/)
+})
+
+test("the panel notices its own updates, since Omarchy never pulls plugins on its own", () => {
+  const check = Hypr.pluginUpdateCheckCommand("jack.display", 6)
+  assert.equal(check[0], "sh")
+  assert.deepEqual(check.slice(4), ["jack.display", "6"])
+  assert.doesNotMatch(check[2], /jack\.display/)
+  assert.match(check[2], /git -C "\$dir" fetch --quiet origin HEAD/)
+  assert.match(check[2], /rev-parse HEAD/)
+  assert.match(check[2], /rev-parse FETCH_HEAD/)
+  assert.match(check[2], /newermt/)
+  assert.match(check[2], /exit 10/)
+
+  assert.deepEqual(Hypr.pluginUpdateCommand("jack.display"), [
+    "omarchy", "plugin", "update", "jack.display", "--yes"
+  ])
+
+  assert.match(qml, /root\.pluginUpdateAvailable = exitCode === 10/)
+  assert.match(qml, /Update this panel/)
+  assert.match(qml, /pluginId: "jack\.display"/)
+  assert.doesNotMatch(qml, /pluginUpdateCheckCommand\(root\.moduleName/)
+})
+
+test("updating the panel finishes the job by reloading the shell", () => {
+  assert.deepEqual(Hypr.shellRestartCommand(), [
+    "sh", "-c", "setsid -f omarchy-restart-shell >/dev/null 2>&1"
+  ])
+  assert.match(Hypr.shellRestartCommand()[2], /setsid/)
+  assert.equal(Hypr.pluginUpdated("Updated jack.display."), true)
+  assert.equal(Hypr.pluginUpdated("jack.display is up to date."), false)
+  assert.equal(Hypr.pluginUpdated(""), false)
+
+  assert.match(qml, /if \(Hypr\.pluginUpdated\(pluginUpdateOutput\.text\)\)/)
+  assert.match(qml, /shellRestartProcess\.startDetached\(\)/)
+})
+
+test("updating touches only this plugin, and asks nothing", () => {
+  const command = Hypr.pluginUpdateCommand("jack.display")
+  assert.ok(command.includes("jack.display"), "the plugin id must be passed")
+  assert.ok(command.includes("--yes"), "the update must not wait on a prompt")
 })
 
 test("the layout editor delegates window behavior to the packaged desktop launcher", () => {
